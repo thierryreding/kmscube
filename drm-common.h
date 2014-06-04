@@ -24,6 +24,8 @@
 #ifndef _DRM_COMMON_H
 #define _DRM_COMMON_H
 
+#include <stdbool.h>
+
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
@@ -64,6 +66,8 @@ struct drm {
 	uint32_t connector_id;
 
 	int (*run)(const struct gbm *gbm, const struct egl *egl);
+
+	bool prime;
 };
 
 struct drm_fb {
@@ -71,10 +75,10 @@ struct drm_fb {
 	uint32_t fb_id;
 };
 
-struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo);
+struct drm_fb * drm_fb_get_from_bo(struct drm *drm, struct gbm_bo *bo);
 
-int init_drm(struct drm *drm, const char *device);
-const struct drm * init_drm_legacy(const char *device);
-const struct drm * init_drm_atomic(const char *device);
+int init_drm(struct drm *drm, const char *device, bool prime);
+const struct drm * init_drm_legacy(const char *device, bool prime);
+const struct drm * init_drm_atomic(const char *device, bool prime);
 
 #endif /* _DRM_COMMON_H */

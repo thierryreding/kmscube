@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "drm-common.h"
@@ -42,9 +43,35 @@ drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
 	free(fb);
 }
 
-struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
+static uint32_t drm_prime_import(struct drm *drm, struct gbm_bo *bo)
 {
-	int drm_fd = gbm_device_get_fd(gbm_bo_get_device(bo));
+	struct gbm_device *gbm = gbm_bo_get_device(bo);
+	int gbm_fd = gbm_device_get_fd(gbm), fd, err;
+	uint32_t handle = gbm_bo_get_handle(bo).u32;
+
+	if (!drm->prime)
+		return handle;
+
+	err = drmPrimeHandleToFD(gbm_fd, handle, 0, &fd);
+	if (err) {
+		printf("failed to export bo: %m\n");
+		return 0;
+	}
+
+	err = drmPrimeFDToHandle(drm->fd, fd, &handle);
+	if (err) {
+		printf("failed to import bo: %m\n");
+		close(fd);
+		return 0;
+	}
+
+	close(fd);
+
+	return handle;
+}
+
+struct drm_fb * drm_fb_get_from_bo(struct drm *drm, struct gbm_bo *bo)
+{
 	struct drm_fb *fb = gbm_bo_get_user_data(bo);
 	uint32_t width, height,
 		 strides[4] = {0}, handles[4] = {0},
@@ -66,7 +93,7 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 	const int num_planes = gbm_bo_get_plane_count(bo);
 	for (int i = 0; i < num_planes; i++) {
 		strides[i] = gbm_bo_get_stride_for_plane(bo, i);
-		handles[i] = gbm_bo_get_handle(bo).u32;
+		handles[i] = drm_prime_import(drm, bo);
 		offsets[i] = gbm_bo_get_offset(bo, i);
 		modifiers[i] = modifiers[0];
 	}
@@ -76,7 +103,7 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 		printf("Using modifier %llx\n", modifiers[0]);
 	}
 
-	ret = drmModeAddFB2WithModifiers(drm_fd, width, height,
+	ret = drmModeAddFB2WithModifiers(drm->fd, width, height,
 			DRM_FORMAT_XRGB8888, handles, strides, offsets,
 			modifiers, &fb->fb_id, flags);
 #endif
@@ -84,10 +111,14 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 		if (flags)
 			fprintf(stderr, "Modifiers failed!\n");
 
-		memcpy(handles, (uint32_t [4]){gbm_bo_get_handle(bo).u32,0,0,0}, 16);
-		memcpy(strides, (uint32_t [4]){gbm_bo_get_stride(bo),0,0,0}, 16);
+		memset(handles, 0, sizeof(handles));
+		memset(strides, 0, sizeof(strides));
 		memset(offsets, 0, 16);
-		ret = drmModeAddFB2(drm_fd, width, height, DRM_FORMAT_XRGB8888,
+
+		handles[0] = drm_prime_import(drm, bo);
+		strides[0] = gbm_bo_get_stride(bo);
+
+		ret = drmModeAddFB2(drm->fd, width, height, DRM_FORMAT_XRGB8888,
 				handles, strides, offsets, &fb->fb_id, 0);
 	}
 
@@ -143,7 +174,7 @@ static uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes 
 	return -1;
 }
 
-int init_drm(struct drm *drm, const char *device)
+int init_drm(struct drm *drm, const char *device, bool prime)
 {
 	drmModeRes *resources;
 	drmModeConnector *connector = NULL;
@@ -156,6 +187,8 @@ int init_drm(struct drm *drm, const char *device)
 		printf("could not open drm device\n");
 		return -1;
 	}
+
+	drm->prime = prime;
 
 	resources = drmModeGetResources(drm->fd);
 	if (!resources) {

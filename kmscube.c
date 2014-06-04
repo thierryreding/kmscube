@@ -24,6 +24,8 @@
 
 /* Based on a egl cube test app originally written by Arvin Schnell */
 
+#include <fcntl.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,11 +45,12 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "AD:M:m:V:";
+static const char *shortopts = "AD:G:M:m:V:";
 
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'A'},
 	{"device", required_argument, 0, 'D'},
+	{"gpu", required_argument, 0, 'G'},
 	{"mode",   required_argument, 0, 'M'},
 	{"modifier", required_argument, 0, 'm'},
 	{"video",  required_argument, 0, 'V'},
@@ -56,11 +59,12 @@ static const struct option longopts[] = {
 
 static void usage(const char *name)
 {
-	printf("Usage: %s [-ADMmV]\n"
+	printf("Usage: %s [-ADGMmV]\n"
 			"\n"
 			"options:\n"
 			"    -A, --atomic             use atomic modesetting and fencing\n"
-			"    -D, --device=DEVICE      use the given device\n"
+			"    -D, --device=DEVICE      use the given display device\n"
+			"    -G, --gpu=DEVICE         use the given GPU device\n"
 			"    -M, --mode=MODE          specify mode, one of:\n"
 			"        smooth    -  smooth shaded cube (default)\n"
 			"        rgba      -  rgba textured cube\n"
@@ -73,12 +77,13 @@ static void usage(const char *name)
 
 int main(int argc, char *argv[])
 {
-	const char *device = "/dev/dri/card0";
+	const char *device = "/dev/dri/card0", *gpu = NULL;
 	const char *video = NULL;
 	enum mode mode = SMOOTH;
 	uint64_t modifier = DRM_FORMAT_MOD_INVALID;
+	bool prime = false;
 	int atomic = 0;
-	int opt;
+	int opt, fd;
 
 #ifdef HAVE_GST
 	gst_init(&argc, &argv);
@@ -92,6 +97,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'D':
 			device = optarg;
+			break;
+		case 'G':
+			gpu = optarg;
 			break;
 		case 'M':
 			if (strcmp(optarg, "smooth") == 0) {
@@ -121,17 +129,29 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if (gpu != NULL)
+		prime = true;
+
 	if (atomic)
-		drm = init_drm_atomic(device);
+		drm = init_drm_atomic(device, prime);
 	else
-		drm = init_drm_legacy(device);
+		drm = init_drm_legacy(device, prime);
 	if (!drm) {
 		printf("failed to initialize %s DRM\n", atomic ? "atomic" : "legacy");
 		return -1;
 	}
 
-	gbm = init_gbm(drm->fd, drm->mode->hdisplay, drm->mode->vdisplay,
-			modifier);
+	if (gpu) {
+		fd = open(gpu, O_RDWR);
+		if (fd < 0) {
+			printf("failed to open GPU device\n");
+			return -1;
+		}
+	} else {
+		fd = fcntl(drm->fd, F_DUPFD, 0);
+	}
+
+	gbm = init_gbm(fd, drm->mode->hdisplay, drm->mode->vdisplay, modifier);
 	if (!gbm) {
 		printf("failed to initialize GBM\n");
 		return -1;

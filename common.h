@@ -58,6 +58,7 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformPixmapSurfaceEXT (EGLDisplay dpy,
 #endif /* EGL_EXT_platform_base */
 
 struct gbm {
+	int fd;
 	struct gbm_device *dev;
 	struct gbm_surface *surface;
 	int width, height;

@@ -187,7 +187,7 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 
 	eglSwapBuffers(egl->display, egl->surface);
 	bo = gbm_surface_lock_front_buffer(gbm->surface);
-	fb = drm_fb_get_from_bo(bo);
+	fb = drm_fb_get_from_bo(&drm, bo);
 	if (!fb) {
 		printf("Failed to get a new framebuffer BO\n");
 		return -1;
@@ -240,7 +240,7 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		assert(drm.kms_in_fence_fd != -1);
 
 		next_bo = gbm_surface_lock_front_buffer(gbm->surface);
-		fb = drm_fb_get_from_bo(next_bo);
+		fb = drm_fb_get_from_bo(&drm, next_bo);
 		if (!fb) {
 			printf("Failed to get a new framebuffer BO\n");
 			return -1;
@@ -322,12 +322,12 @@ static int get_plane_id(void)
 	return ret;
 }
 
-const struct drm * init_drm_atomic(const char *device)
+const struct drm * init_drm_atomic(const char *device, bool prime)
 {
 	uint32_t plane_id;
 	int ret;
 
-	ret = init_drm(&drm, device);
+	ret = init_drm(&drm, device, prime);
 	if (ret)
 		return NULL;
 

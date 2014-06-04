@@ -54,7 +54,7 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 
 	eglSwapBuffers(egl->display, egl->surface);
 	bo = gbm_surface_lock_front_buffer(gbm->surface);
-	fb = drm_fb_get_from_bo(bo);
+	fb = drm_fb_get_from_bo(&drm, bo);
 	if (!fb) {
 		fprintf(stderr, "Failed to get a new framebuffer BO\n");
 		return -1;
@@ -81,7 +81,7 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 
 		eglSwapBuffers(egl->display, egl->surface);
 		next_bo = gbm_surface_lock_front_buffer(gbm->surface);
-		fb = drm_fb_get_from_bo(next_bo);
+		fb = drm_fb_get_from_bo(&drm, next_bo);
 		if (!fb) {
 			fprintf(stderr, "Failed to get a new framebuffer BO\n");
 			return -1;
@@ -122,11 +122,11 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 	return 0;
 }
 
-const struct drm * init_drm_legacy(const char *device)
+const struct drm * init_drm_legacy(const char *device, bool prime)
 {
 	int ret;
 
-	ret = init_drm(&drm, device);
+	ret = init_drm(&drm, device, prime);
 	if (ret)
 		return NULL;
 
