@@ -43,7 +43,6 @@ static void page_flip_handler(int fd, unsigned int frame,
 
 static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 {
-	fd_set fds;
 	drmEventContext evctx = {
 			.version = 2,
 			.page_flip_handler = page_flip_handler,
@@ -52,10 +51,6 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 	struct drm_fb *fb;
 	uint32_t i = 0;
 	int ret;
-
-	FD_ZERO(&fds);
-	FD_SET(0, &fds);
-	FD_SET(drm.fd, &fds);
 
 	eglSwapBuffers(egl->display, egl->surface);
 	bo = gbm_surface_lock_front_buffer(gbm->surface);
@@ -76,6 +71,11 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 	while (1) {
 		struct gbm_bo *next_bo;
 		int waiting_for_flip = 1;
+		fd_set fds;
+
+		FD_ZERO(&fds);
+		FD_SET(0, &fds);
+		FD_SET(drm.fd, &fds);
 
 		egl->draw(i++);
 
