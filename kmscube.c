@@ -79,6 +79,8 @@ int main(int argc, char *argv[])
 	const char *video = NULL;
 	enum mode mode = SMOOTH;
 	uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
+	unsigned int num_modifiers = 0;
+	uint64_t *modifiers = NULL;
 	int samples = 0;
 	int atomic = 0;
 	int opt;
@@ -113,6 +115,8 @@ int main(int argc, char *argv[])
 			break;
 		case 'm':
 			modifier = strtoull(optarg, NULL, 0);
+			modifiers = &modifier;
+			num_modifiers = 1;
 			break;
 		case 's':
 			samples = strtoul(optarg, NULL, 0);
@@ -128,7 +132,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (atomic)
-		drm = init_drm_atomic(device);
+		drm = init_drm_atomic(device, modifiers, num_modifiers);
 	else
 		drm = init_drm_legacy(device);
 	if (!drm) {
@@ -136,7 +140,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	gbm = init_gbm(drm, modifier);
+	gbm = init_gbm(drm);
 	if (!gbm) {
 		printf("failed to initialize GBM\n");
 		return -1;

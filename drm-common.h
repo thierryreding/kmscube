@@ -58,6 +58,8 @@ struct drm {
 	int crtc_index;
 	int kms_in_fence_fd;
 	int kms_out_fence_fd;
+	unsigned int num_modifiers;
+	uint64_t *modifiers;
 
 	drmModeModeInfo *mode;
 	uint32_t crtc_id;
@@ -75,6 +77,7 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo);
 
 int init_drm(struct drm *drm, const char *device);
 const struct drm * init_drm_legacy(const char *device);
-const struct drm * init_drm_atomic(const char *device);
+const struct drm * init_drm_atomic(const char *device, uint64_t *modifiers,
+				   unsigned int num_modifiers);
 
 #endif /* _DRM_COMMON_H */

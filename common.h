@@ -84,7 +84,7 @@ struct gbm {
 };
 
 struct drm;
-const struct gbm *init_gbm(const struct drm *drm, uint64_t modifier);
+const struct gbm *init_gbm(const struct drm *drm);
 
 struct egl {
 	EGLDisplay display;

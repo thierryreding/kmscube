@@ -337,7 +337,66 @@ static int get_plane_id(void)
 	return ret;
 }
 
-const struct drm * init_drm_atomic(const char *device)
+static unsigned int
+get_modifiers(drmModePropertyBlobPtr blob, struct drm_format_modifier **modsp)
+{
+	struct drm_format_modifier_blob *data = blob->data;
+
+	*modsp = blob->data + data->modifiers_offset;
+
+	return data->count_modifiers;
+}
+
+static int
+drm_atomic_get_modifiers(struct drm *drm)
+{
+	unsigned int i, j, format_index = 0;
+
+	for (i = 0; i < drm->plane->plane->count_formats; i++) {
+		if (drm->plane->plane->formats[i] == DRM_FORMAT_XRGB8888)
+			format_index = i;
+	}
+
+	for (i = 0; i < drm->plane->props->count_props; i++) {
+		if (!strcmp(drm->plane->props_info[i]->name, "IN_FORMATS")) {
+			struct drm_format_modifier *mods;
+			drmModePropertyBlobPtr blob;
+			unsigned int count;
+
+			blob = drmModeGetPropertyBlob(drm->fd,
+						      drm->plane->props->prop_values[i]);
+			if (!blob) {
+				printf("failed to get blob for property %s\n",
+				       drm->plane->props_info[i]->name);
+				return -ENOMEM;
+			}
+
+			count = get_modifiers(blob, &mods);
+
+			for (j = 0; j < count; j++) {
+				if (mods[j].formats & (1ULL << format_index))
+					drm->num_modifiers++;
+			}
+
+			drm->modifiers = calloc(drm->num_modifiers,
+					        sizeof(uint64_t));
+			if (!drm->modifiers) {
+				printf("failed to allocate modifiers\n");
+				return -ENOMEM;
+			}
+
+			for (j = 0; j < count; j++) {
+				if (mods[j].formats & (1ULL << format_index))
+					drm->modifiers[j] = mods[j].modifier;
+			}
+		}
+	}
+
+	return 0;
+}
+
+const struct drm *init_drm_atomic(const char *device, uint64_t *modifiers,
+				  unsigned int num_modifiers)
 {
 	uint32_t plane_id;
 	int ret;
@@ -345,6 +404,9 @@ const struct drm * init_drm_atomic(const char *device)
 	ret = init_drm(&drm, device);
 	if (ret)
 		return NULL;
+
+	drm.num_modifiers = num_modifiers;
+	drm.modifiers = modifiers;
 
 	ret = drmSetClientCap(drm.fd, DRM_CLIENT_CAP_ATOMIC, 1);
 	if (ret) {
@@ -401,6 +463,12 @@ const struct drm * init_drm_atomic(const char *device)
 	get_properties(plane, PLANE, plane_id);
 	get_properties(crtc, CRTC, drm.crtc_id);
 	get_properties(connector, CONNECTOR, drm.connector_id);
+
+	if (num_modifiers == 0) {
+		ret = drm_atomic_get_modifiers(&drm);
+		if (ret < 0)
+			return NULL;
+	}
 
 	drm.run = atomic_run;
 

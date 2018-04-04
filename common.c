@@ -41,20 +41,22 @@ gbm_surface_create_with_modifiers(struct gbm_device *gbm,
                                   const uint64_t *modifiers,
                                   const unsigned int count);
 
-const struct gbm * init_gbm(const struct drm *drm, uint64_t modifier)
+const struct gbm * init_gbm(const struct drm *drm)
 {
 	gbm.dev = gbm_create_device(drm->fd);
 	gbm.format = GBM_FORMAT_XRGB8888;
 	gbm.surface = NULL;
 
-	if (gbm_surface_create_with_modifiers) {
+	if (gbm_surface_create_with_modifiers && drm->num_modifiers > 0) {
 		gbm.surface = gbm_surface_create_with_modifiers(gbm.dev,
 				drm->mode->hdisplay, drm->mode->vdisplay,
-				gbm.format, &modifier, 1);
+				gbm.format, drm->modifiers,
+				drm->num_modifiers);
 	}
 
 	if (!gbm.surface) {
-		if (modifier != DRM_FORMAT_MOD_LINEAR) {
+		if (drm->num_modifiers > 0 &&
+		    drm->modifiers[0] != DRM_FORMAT_MOD_LINEAR) {
 			fprintf(stderr, "Modifiers requested but support isn't available\n");
 			return NULL;
 		}
