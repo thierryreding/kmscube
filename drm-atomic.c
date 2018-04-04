@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/select.h>
 
 #include "common.h"
 #include "drm-common.h"
@@ -179,6 +180,8 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 	struct drm_fb *fb;
 	uint32_t i = 0;
 	uint32_t flags = DRM_MODE_ATOMIC_NONBLOCK;
+	struct timeval timeout;
+	fd_set fds;
 	int ret;
 
 	if (egl_check(egl, eglDupNativeFenceFDANDROID) ||
@@ -274,6 +277,28 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 
 		/* Allow a modeset change for the first commit only. */
 		flags &= ~(DRM_MODE_ATOMIC_ALLOW_MODESET);
+
+		/* watch for user interruption */
+		FD_ZERO(&fds);
+		FD_SET(0, &fds);
+		memset(&timeout, 0, sizeof(timeout));
+
+		ret = select(1, &fds, NULL, NULL, &timeout);
+		if (ret < 0) {
+			printf("select() failed: %s\n", strerror(errno));
+			break;
+		}
+
+		/*
+		 * select() will immediately timeout if there was no user
+		 * interrupt because of the 0 timeout. However, that's an
+		 * expected situation, not an error, so we just ignore it
+		 * here.
+		 */
+		if (FD_ISSET(0, &fds)) {
+			printf("user interrupted!\n");
+			break;
+		}
 	}
 
 	return ret;
