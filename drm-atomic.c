@@ -116,7 +116,7 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 	if (flags & DRM_MODE_ATOMIC_ALLOW_MODESET) {
 		if (add_connector_property(req, drm.connector_id, "CRTC_ID",
 						drm.crtc_id) < 0)
-				return -1;
+			return -1;
 
 		if (drmModeCreatePropertyBlob(drm.fd, drm.mode, sizeof(*drm.mode),
 					      &blob_id) != 0)
