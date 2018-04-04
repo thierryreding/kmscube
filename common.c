@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "drm-common.h"
 
 static struct gbm gbm;
 
@@ -40,17 +41,16 @@ gbm_surface_create_with_modifiers(struct gbm_device *gbm,
                                   const uint64_t *modifiers,
                                   const unsigned int count);
 
-const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
+const struct gbm * init_gbm(const struct drm *drm, uint64_t modifier)
 {
-	gbm.dev = gbm_create_device(drm_fd);
+	gbm.dev = gbm_create_device(drm->fd);
 	gbm.format = GBM_FORMAT_XRGB8888;
 	gbm.surface = NULL;
 
 	if (gbm_surface_create_with_modifiers) {
-		gbm.surface = gbm_surface_create_with_modifiers(gbm.dev, w, h,
-								gbm.format,
-								&modifier, 1);
-
+		gbm.surface = gbm_surface_create_with_modifiers(gbm.dev,
+				drm->mode->hdisplay, drm->mode->vdisplay,
+				gbm.format, &modifier, 1);
 	}
 
 	if (!gbm.surface) {
@@ -58,10 +58,10 @@ const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 			fprintf(stderr, "Modifiers requested but support isn't available\n");
 			return NULL;
 		}
-		gbm.surface = gbm_surface_create(gbm.dev, w, h,
-						gbm.format,
-						GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
 
+		gbm.surface = gbm_surface_create(gbm.dev, drm->mode->hdisplay,
+				drm->mode->vdisplay, gbm.format,
+				GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
 	}
 
 	if (!gbm.surface) {
@@ -69,8 +69,8 @@ const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 		return NULL;
 	}
 
-	gbm.width = w;
-	gbm.height = h;
+	gbm.width = drm->mode->hdisplay;
+	gbm.height = drm->mode->vdisplay;
 
 	return &gbm;
 }
